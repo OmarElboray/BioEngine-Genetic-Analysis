@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BioEngine AI - Lab Assistant</title>
+    <style>
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            text-align: center; 
+            padding: 20px; 
+            background-color: #1e1e1e; 
+            color: #ffffff;
+        }
+        h1 { color: #4CAF50; }
+        video { 
+            width: 100%; 
+            max-width: 600px; 
+            border-radius: 8px; 
+            border: 3px solid #4CAF50; 
+            margin-bottom: 20px; 
+            background-color: #000;
+        }
+        button { 
+            padding: 12px 24px; 
+            font-size: 16px; 
+            font-weight: bold;
+            margin: 5px; 
+            cursor: pointer; 
+            border-radius: 5px; 
+            border: none; 
+            background-color: #4CAF50; 
+            color: white; 
+            transition: 0.3s;
+        }
+        button:disabled { background-color: #555; cursor: not-allowed; }
+        #status { margin-top: 15px; font-weight: bold; font-size: 1.2em; color: #ffeb3b; }
+    </style>
+</head>
+<body>
+
+    <h1>BioEngine AI Interface</h1>
+    <p>Hold up a 3D protein structure and ask for a BEI analysis.</p>
+    
+    <canvas id="canvas" style="display:none;"></canvas>
+    
+    <video id="webcam" autoplay playsinline muted></video>
+    <br>
+    <button id="startBtn">Start Live Session</button>
+    <button id="stopBtn" disabled>Stop Session</button>
+    
+    <div id="status">Status: Disconnected</div>
+
+    <script>
+        const video = document.getElementById('webcam');
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const startBtn = document.getElementById('startBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const statusText = document.getElementById('status');
+        
+        let ws;
+        let localStream;
+        let frameInterval;
+
+        // 1. Connect to your Python Backend via WebSockets
+        function connectWebSocket() {
+            // This assumes your Python backend will run locally on port 8000
+            ws = new WebSocket('ws://localhost:8000/ws');
+
+            ws.onopen = () => {
+                statusText.innerText = "Status: Connected to BioEngine Backend 🟢";
+                statusText.style.color = "#4CAF50";
+                startStreamingFrames();
+            };
+
+            ws.onmessage = async (event) => {
+                // When Gemini speaks, the backend sends the audio back here to play
+                if (event.data instanceof Blob) {
+                    const audioUrl = URL.createObjectURL(event.data);
+                    const audio = new Audio(audioUrl);
+                    audio.play();
+                } else {
+                    console.log("Message from backend:", event.data);
+                }
+            };
+
+            ws.onclose = () => {
+                statusText.innerText = "Status: Disconnected 🔴";
+                statusText.style.color = "#f44336";
+                stopSession();
+            };
+        }
+
+        // 2. Start the Camera and Microphone
+        async function startSession() {
+            try {
+                localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+                video.srcObject = localStream;
+                
+                startBtn.disabled = true;
+                stopBtn.disabled = false;
+                statusText.innerText = "Status: Connecting to backend... 🟡";
+                
+                connectWebSocket();
+            } catch (err) {
+                console.error("Error accessing media devices.", err);
+                statusText.innerText = "Status: Camera/Mic Access Denied ❌";
+            }
+        }
+
+        // 3. Send Video Frames to the Backend (so Gemini can "see")
+        function startStreamingFrames() {
+            // Capture a frame every 1 second to save bandwidth
+            frameInterval = setInterval(() => {
+                if (ws.readyState === WebSocket.OPEN && video.videoWidth > 0) {
+                    canvas.width = video.videoWidth;
+                    canvas.height = video.videoHeight;
+                    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                    
+                    // Convert frame to base64 JPEG and send to Python backend
+                    const imageData = canvas.toDataURL('image/jpeg', 0.5);
+                    ws.send(JSON.stringify({ type: 'image', data: imageData }));
+                }
+            }, 1000); 
+        }
+
+        // 4. Stop everything
+        function stopSession() {
+            if (localStream) {
+                localStream.getTracks().forEach(track => track.stop());
+            }
+            if (frameInterval) clearInterval(frameInterval);
+            if (ws) ws.close();
+            
+            video.srcObject = null;
+            startBtn.disabled = false;
+            stopBtn.disabled = true;
+            statusText.innerText = "Status: Disconnected 🔴";
+        }
+
+        startBtn.addEventListener('click', startSession);
+        stopBtn.addEventListener('click', stopSession);
+    </script>
+</body>
+</html>
