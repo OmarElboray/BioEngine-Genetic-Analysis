@@ -15,7 +15,7 @@ BioEngine AI is a computational biology platform designed to streamline the anal
 
 > [!IMPORTANT]
 > **Status: Active Research & Development**
-> The codebase for BioEngine AI is currently in a private repository as we finalize the core algorithms and milestone requirements for the global STEM challenge. Documentation and open-source modules will be released periodically.
+> The codebase for BioEngine AI is currently underdevlopment for the global STEM challenge. Documentation and open-source modules will be released periodically.
 
 ### Team & Leadership
 This project is developed by a multi-national research group within a global science academy.
